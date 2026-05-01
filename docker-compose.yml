@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?MONGO_PASSWORD must be set}
+    networks:
+      - internal
+    # Not exposed to host — only accessible within the internal network
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD}@mongo:27017/checklist_app?authSource=admin
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?required}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?required}
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 20971520
+      FILE_ENC_KEY: ${FILE_ENC_KEY:?required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      BCRYPT_ROUNDS: 12
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - internal
+      - web
+    ports:
+      - '4000:4000'
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - web
+    ports:
+      - '80:80'
+
+volumes:
+  mongo_data:
+  uploads:
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    driver: bridge
