@@ -1,0 +1,51 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #f5f2ec;
+  --surface: #fdfcf9;
+  --ink: #1a1714;
+  --ink-muted: #7a7570;
+  --ink-faint: #c2bdb7;
+  --accent: #c84b2f;
+  --accent-light: #f5e8e4;
+  --green: #2d6a4f;
+  --green-light: #e8f3ee;
+  --border: #e2ddd7;
+  --sidebar-w: 280px;
+  --blue: #2c5f8a;
+  --blue-light: #e8f0f7;
+  --amber: #b45309;
+  --amber-light: #fef3c7;
+  --purple: #5b3fa6;
+  --purple-light: #ede8f8;
+}
+
+body {
+  background: var(--bg);
+  font-family: "DM Mono", monospace;
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+}
+
+#root {
+  display: flex;
+  width: 100%;
+}
+
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-family: "DM Mono", monospace;
+}

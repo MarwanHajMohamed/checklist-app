@@ -1,14 +1,11 @@
-FROM node:20-alpine AS deps
+FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json ./
-RUN npm install --omit=dev
-
-FROM node:20-alpine
-WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
-COPY --from=deps /app/node_modules ./node_modules
+RUN npm install
 COPY . .
-RUN mkdir -p /app/uploads && chown -R app:app /app
-USER app
-EXPOSE 4000
-CMD ["node", "src/app.js"]
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
