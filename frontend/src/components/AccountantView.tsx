@@ -1,19 +1,19 @@
-import { useRef, useState } from 'react';
-import type { AccountantInvoice, AttachedFile, SendListItem } from '../types';
+import { useRef, useState } from "react";
+import type { AccountantInvoice, SendListItem } from "../types";
 import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
   reorderInvoices,
-} from '../api/accountant';
+} from "../api/accountant";
 import {
   addSendItem,
   updateSendItem,
   deleteSendItem,
   clearDoneSendItems,
   reorderSendList,
-} from '../api/sendList';
-import FileModal from './FileModal';
+} from "../api/sendList";
+import FileModal from "./FileModal";
 
 interface Props {
   invoices: AccountantInvoice[];
@@ -24,53 +24,64 @@ interface Props {
 }
 
 function escapeHtml(s: string) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function escapeRegExp(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function highlight(text: string, query: string) {
   if (!query) return escapeHtml(text);
-  const re = new RegExp(`(${escapeRegExp(escapeHtml(query))})`, 'gi');
-  return escapeHtml(text).replace(re, '<mark>$1</mark>');
+  const re = new RegExp(`(${escapeRegExp(escapeHtml(query))})`, "gi");
+  return escapeHtml(text).replace(re, "<mark>$1</mark>");
 }
 
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)}KB`;
-  return `${(bytes / 1048576).toFixed(1)}MB`;
-}
-
-export default function AccountantView({ invoices, sendList, readOnly = false, onInvoicesChange, onSendListChange }: Props) {
-  const [newInvNum, setNewInvNum] = useState('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'sent'>('all');
-  const [searchQ, setSearchQ] = useState('');
+export default function AccountantView({
+  invoices,
+  sendList,
+  readOnly = false,
+  onInvoicesChange,
+  onSendListChange,
+}: Props) {
+  const [newInvNum, setNewInvNum] = useState("");
+  const [filter, setFilter] = useState<"all" | "pending" | "sent">("all");
+  const [searchQ, setSearchQ] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [fileModalInv, setFileModalInv] = useState<AccountantInvoice | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [fileModalInv, setFileModalInv] = useState<AccountantInvoice | null>(
+    null,
+  );
 
   // Send list
-  const [sendInput, setSendInput] = useState('');
+  const [sendInput, setSendInput] = useState("");
 
   // Drag state (accountant table)
   const dragSrcRef = useRef<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; above: boolean } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    id: string;
+    above: boolean;
+  } | null>(null);
 
   // Drag state (send list)
   const sendDragSrcRef = useRef<string | null>(null);
-  const [sendDropTarget, setSendDropTarget] = useState<{ id: string; above: boolean } | null>(null);
+  const [sendDropTarget, setSendDropTarget] = useState<{
+    id: string;
+    above: boolean;
+  } | null>(null);
 
   const q = searchQ.toLowerCase();
   const filtered = invoices.filter((inv) => {
-    const matchFilter = filter === 'sent' ? inv.sent : filter === 'pending' ? !inv.sent : true;
+    const matchFilter =
+      filter === "sent" ? inv.sent : filter === "pending" ? !inv.sent : true;
     const matchSearch = !q || inv.num.toLowerCase().includes(q);
     return matchFilter && matchSearch;
   });
   const sorted =
-    filter === 'all'
-      ? [...filtered].sort((a, b) => (a.sent === b.sent ? a.order - b.order : a.sent ? 1 : -1))
+    filter === "all"
+      ? [...filtered].sort((a, b) =>
+          a.sent === b.sent ? a.order - b.order : a.sent ? 1 : -1,
+        )
       : [...filtered].sort((a, b) => a.order - b.order);
 
   const sentCount = invoices.filter((i) => i.sent).length;
@@ -81,14 +92,16 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
     if (!num) return;
     const inv = await createInvoice(num);
     onInvoicesChange([...invoices, inv]);
-    setNewInvNum('');
+    setNewInvNum("");
   }
 
   async function handleToggleSent(id: string) {
     const inv = invoices.find((i) => i._id === id);
     if (!inv) return;
     const updated = await updateInvoice(id, { sent: !inv.sent });
-    onInvoicesChange(invoices.map((i) => (i._id === id ? { ...i, sent: updated.sent } : i)));
+    onInvoicesChange(
+      invoices.map((i) => (i._id === id ? { ...i, sent: updated.sent } : i)),
+    );
   }
 
   async function handleDelete(id: string) {
@@ -98,7 +111,9 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
 
   async function handleClearSent() {
     const kept = invoices.filter((i) => !i.sent);
-    await Promise.all(invoices.filter((i) => i.sent).map((i) => deleteInvoice(i._id)));
+    await Promise.all(
+      invoices.filter((i) => i.sent).map((i) => deleteInvoice(i._id)),
+    );
     onInvoicesChange(kept);
   }
 
@@ -112,7 +127,11 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
     const trimmed = editValue.trim();
     if (trimmed) {
       const updated = await updateInvoice(editingId, { num: trimmed });
-      onInvoicesChange(invoices.map((i) => (i._id === editingId ? { ...i, num: updated.num } : i)));
+      onInvoicesChange(
+        invoices.map((i) =>
+          i._id === editingId ? { ...i, num: updated.num } : i,
+        ),
+      );
     }
     setEditingId(null);
   }
@@ -130,10 +149,12 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
 
   async function handleDrop(targetId: string, above: boolean) {
     const srcId = dragSrcRef.current;
-    if (!srcId || srcId === targetId) { setDropTarget(null); return; }
+    if (!srcId || srcId === targetId) {
+      setDropTarget(null);
+      return;
+    }
     const arr = [...invoices];
     const si = arr.findIndex((i) => i._id === srcId);
-    const ti = arr.findIndex((i) => i._id === targetId);
     const [item] = arr.splice(si, 1);
     const nti = arr.findIndex((i) => i._id === targetId);
     arr.splice(above ? nti : nti + 1, 0, item);
@@ -150,7 +171,7 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
     if (!num) return;
     const item = await addSendItem(num);
     onSendListChange([...sendList, item]);
-    setSendInput('');
+    setSendInput("");
   }
 
   async function handleToggleSendDone(id: string) {
@@ -178,10 +199,12 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
 
   async function handleSendDrop(targetId: string, above: boolean) {
     const srcId = sendDragSrcRef.current;
-    if (!srcId || srcId === targetId) { setSendDropTarget(null); return; }
+    if (!srcId || srcId === targetId) {
+      setSendDropTarget(null);
+      return;
+    }
     const arr = [...sendList];
     const si = arr.findIndex((i) => i._id === srcId);
-    const ti = arr.findIndex((i) => i._id === targetId);
     const [item] = arr.splice(si, 1);
     const nti = arr.findIndex((i) => i._id === targetId);
     arr.splice(above ? nti : nti + 1, 0, item);
@@ -191,15 +214,23 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
     await reorderSendList(arr.map((i) => ({ id: i._id })));
   }
 
-  const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const todayLabel = new Date().toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
   const sendDoneCount = sendList.filter((i) => i.done).length;
 
   return (
     <div className="accountant-view active">
       <div className="view-header">
         <p className="view-tag blue">Finance</p>
-        <h1>Sent to <em className="blue">accountant</em></h1>
-        <p className="invoice-num" style={{ marginBottom: 0 }}>Track which invoices have been forwarded.</p>
+        <h1>
+          Sent to <em className="blue">accountant</em>
+        </h1>
+        <p className="invoice-num" style={{ marginBottom: 0 }}>
+          Track which invoices have been forwarded.
+        </p>
       </div>
 
       <div className="acct-layout">
@@ -211,36 +242,43 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
                 className="acct-input"
                 value={newInvNum}
                 onChange={(e) => setNewInvNum(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
                 placeholder="Invoice / reference number…"
                 autoComplete="off"
               />
-              <button className="acct-add-btn" onClick={handleAdd}>Add</button>
+              <button className="acct-add-btn" onClick={handleAdd}>
+                Add
+              </button>
             </div>
           )}
 
           <div className="acct-search-row">
-            <div className={`acct-search-wrap${searchQ ? ' has-query' : ''}`}>
+            <div className={`acct-search-wrap${searchQ ? " has-query" : ""}`}>
               <span className="acct-search-icon">⌕</span>
               <input
                 className="acct-search-input"
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
-                onKeyDown={(e) => e.key === 'Escape' && setSearchQ('')}
+                onKeyDown={(e) => e.key === "Escape" && setSearchQ("")}
                 placeholder="Filter invoices…"
                 autoComplete="off"
               />
               {searchQ && (
-                <button className="acct-search-clear" onClick={() => setSearchQ('')}>✕</button>
+                <button
+                  className="acct-search-clear"
+                  onClick={() => setSearchQ("")}
+                >
+                  ✕
+                </button>
               )}
             </div>
           </div>
 
           <div className="acct-filters">
-            {(['all', 'pending', 'sent'] as const).map((f) => (
+            {(["all", "pending", "sent"] as const).map((f) => (
               <button
                 key={f}
-                className={`acct-filter-btn${filter === f ? ' active' : ''}`}
+                className={`acct-filter-btn${filter === f ? " active" : ""}`}
                 onClick={() => setFilter(f)}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -252,15 +290,31 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
             <div className="acct-table-header">
               {!readOnly && <span className="acct-th" />}
               <span className="acct-th">Invoice / Ref</span>
-              <span className="acct-th" style={{ textAlign: 'center', minWidth: 90 }}>Sent to accountant</span>
-              <span className="acct-th" style={{ textAlign: 'center', minWidth: 70 }}>Files</span>
-              {!readOnly && <span className="acct-th" style={{ minWidth: 36 }} />}
+              <span
+                className="acct-th"
+                style={{ textAlign: "center", minWidth: 90 }}
+              >
+                Sent to accountant
+              </span>
+              <span
+                className="acct-th"
+                style={{ textAlign: "center", minWidth: 70 }}
+              >
+                Files
+              </span>
+              {!readOnly && (
+                <span className="acct-th" style={{ minWidth: 36 }} />
+              )}
             </div>
 
             <div id="acct-rows">
               {sorted.length === 0 ? (
                 <div className="acct-empty">
-                  {searchQ ? `No results for "${searchQ}"` : filter === 'all' ? 'No invoices yet — add one above.' : 'Nothing here.'}
+                  {searchQ
+                    ? `No results for "${searchQ}"`
+                    : filter === "all"
+                      ? "No invoices yet — add one above."
+                      : "Nothing here."}
                 </div>
               ) : (
                 sorted.map((inv) => {
@@ -268,17 +322,43 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
                   return (
                     <div
                       key={inv._id}
-                      className={`acct-row${inv.sent ? ' sent' : ''}${isDrop && dropTarget?.above ? ' drop-above' : ''}${isDrop && !dropTarget?.above ? ' drop-below' : ''}`}
+                      className={`acct-row${inv.sent ? " sent" : ""}${isDrop && dropTarget?.above ? " drop-above" : ""}${isDrop && !dropTarget?.above ? " drop-below" : ""}`}
                       draggable={!readOnly}
-                      onDragStart={!readOnly ? () => handleDragStart(inv._id) : undefined}
-                      onDragOver={!readOnly ? (e) => handleDragOver(e, inv._id) : undefined}
-                      onDragLeave={!readOnly ? () => setDropTarget(null) : undefined}
-                      onDrop={!readOnly ? () => dropTarget && handleDrop(inv._id, dropTarget.above) : undefined}
-                      onDragEnd={!readOnly ? () => { setDropTarget(null); dragSrcRef.current = null; } : undefined}
+                      onDragStart={
+                        !readOnly ? () => handleDragStart(inv._id) : undefined
+                      }
+                      onDragOver={
+                        !readOnly
+                          ? (e) => handleDragOver(e, inv._id)
+                          : undefined
+                      }
+                      onDragLeave={
+                        !readOnly ? () => setDropTarget(null) : undefined
+                      }
+                      onDrop={
+                        !readOnly
+                          ? () =>
+                              dropTarget &&
+                              handleDrop(inv._id, dropTarget.above)
+                          : undefined
+                      }
+                      onDragEnd={
+                        !readOnly
+                          ? () => {
+                              setDropTarget(null);
+                              dragSrcRef.current = null;
+                            }
+                          : undefined
+                      }
                     >
                       {!readOnly && (
-                        <div className="acct-drag-handle" title="Drag to reorder">
-                          <span /><span /><span />
+                        <div
+                          className="acct-drag-handle"
+                          title="Drag to reorder"
+                        >
+                          <span />
+                          <span />
+                          <span />
                         </div>
                       )}
 
@@ -289,46 +369,94 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={commitEdit}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-                            if (e.key === 'Escape') { setEditingId(null); }
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              commitEdit();
+                            }
+                            if (e.key === "Escape") {
+                              setEditingId(null);
+                            }
                           }}
                           autoFocus
                         />
                       ) : (
                         <span
                           className="acct-inv-num"
-                          onClick={!readOnly ? () => startEdit(inv._id, inv.num) : undefined}
-                          style={readOnly ? { cursor: 'default' } : undefined}
-                          dangerouslySetInnerHTML={{ __html: highlight(inv.num, searchQ) }}
+                          onClick={
+                            !readOnly
+                              ? () => startEdit(inv._id, inv.num)
+                              : undefined
+                          }
+                          style={readOnly ? { cursor: "default" } : undefined}
+                          dangerouslySetInnerHTML={{
+                            __html: highlight(inv.num, searchQ),
+                          }}
                         />
                       )}
 
                       <div
                         className="acct-sent-toggle"
-                        onClick={!readOnly ? () => handleToggleSent(inv._id) : undefined}
-                        style={readOnly ? { cursor: 'default', pointerEvents: 'none' } : undefined}
+                        onClick={
+                          !readOnly
+                            ? () => handleToggleSent(inv._id)
+                            : undefined
+                        }
+                        style={
+                          readOnly
+                            ? { cursor: "default", pointerEvents: "none" }
+                            : undefined
+                        }
                       >
                         <div className="acct-cb">
                           {inv.sent && (
-                            <svg width="9" height="9" viewBox="0 0 10 10" style={{ stroke: 'white', strokeWidth: 2, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                            <svg
+                              width="9"
+                              height="9"
+                              viewBox="0 0 10 10"
+                              style={{
+                                stroke: "white",
+                                strokeWidth: 2,
+                                fill: "none",
+                                strokeLinecap: "round",
+                                strokeLinejoin: "round",
+                              }}
+                            >
                               <path d="M1.5 5l2.5 2.5 4.5-4.5" />
                             </svg>
                           )}
                         </div>
-                        <span className="acct-cb-label">{inv.sent ? 'Sent' : 'Pending'}</span>
+                        <span className="acct-cb-label">
+                          {inv.sent ? "Sent" : "Pending"}
+                        </span>
                       </div>
 
                       <div className="acct-file-cell">
                         <button
-                          className={`acct-file-btn${inv.files.length > 0 ? ' has-file' : ''}`}
+                          className={`acct-file-btn${inv.files.length > 0 ? " has-file" : ""}`}
                           onClick={() => setFileModalInv(inv)}
-                          title={inv.files.length > 0 ? `${inv.files.length} file(s) attached` : 'No files'}
+                          title={
+                            inv.files.length > 0
+                              ? `${inv.files.length} file(s) attached`
+                              : "No files"
+                          }
                         >
-                          📎{inv.files.length > 0 && <span className="acct-file-count">{inv.files.length}</span>}
+                          📎
+                          {inv.files.length > 0 && (
+                            <span className="acct-file-count">
+                              {inv.files.length}
+                            </span>
+                          )}
                         </button>
                       </div>
 
-                      {!readOnly && <span className="acct-del" onClick={() => handleDelete(inv._id)}>✕</span>}
+                      {!readOnly && (
+                        <span
+                          className="acct-del"
+                          onClick={() => handleDelete(inv._id)}
+                        >
+                          ✕
+                        </span>
+                      )}
                     </div>
                   );
                 })
@@ -337,73 +465,125 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
           </div>
 
           <div className="acct-summary">
-            <span className="acct-stat"><strong>{sentCount}</strong> sent</span>
-            <span className="acct-stat"><strong>{pendingCount}</strong> pending</span>
-            {!readOnly && <button className="acct-clear-btn" onClick={handleClearSent}>Clear sent</button>}
+            <span className="acct-stat">
+              <strong>{sentCount}</strong> sent
+            </span>
+            <span className="acct-stat">
+              <strong>{pendingCount}</strong> pending
+            </span>
+            {!readOnly && (
+              <button className="acct-clear-btn" onClick={handleClearSent}>
+                Clear sent
+              </button>
+            )}
           </div>
         </div>
 
         {/* RIGHT — Send Panel (operations only) */}
-        {!readOnly && <div className="send-panel">
-          <div className="send-panel-header">
-            <div className="send-panel-title">Today's <em>send list</em></div>
-            <div className="send-panel-date">{todayLabel}</div>
-          </div>
+        {!readOnly && (
+          <div className="send-panel">
+            <div className="send-panel-header">
+              <div className="send-panel-title">
+                Today's <em>send list</em>
+              </div>
+              <div className="send-panel-date">{todayLabel}</div>
+            </div>
 
-          <div className="send-panel-body">
-            <div id="send-list-items">
-              {sendList.length === 0 ? (
-                <div className="send-panel-empty">Nothing planned yet.<br />Add invoice refs below.</div>
-              ) : (
-                sendList.map((item) => {
-                  const isDrop = sendDropTarget?.id === item._id;
-                  return (
-                    <div
-                      key={item._id}
-                      className={`send-item${item.done ? ' done-send' : ''}${isDrop && sendDropTarget?.above ? ' drop-above-send' : ''}${isDrop && !sendDropTarget?.above ? ' drop-below-send' : ''}`}
-                      draggable
-                      onDragStart={() => { sendDragSrcRef.current = item._id; }}
-                      onDragOver={(e) => handleSendDragOver(e, item._id)}
-                      onDragLeave={() => setSendDropTarget(null)}
-                      onDrop={() => sendDropTarget && handleSendDrop(item._id, sendDropTarget.above)}
-                      onDragEnd={() => { setSendDropTarget(null); sendDragSrcRef.current = null; }}
-                    >
-                      <div className="send-item-drag"><span /><span /><span /></div>
-                      <span className="send-item-num">{item.num}</span>
-                      <div className="send-item-done-cb" onClick={() => handleToggleSendDone(item._id)}>
-                        {item.done && (
-                          <svg width="8" height="8" viewBox="0 0 10 10" style={{ stroke: 'white', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' }}>
-                            <path d="M1.5 5l2.5 2.5 4.5-4.5" />
-                          </svg>
-                        )}
+            <div className="send-panel-body">
+              <div id="send-list-items">
+                {sendList.length === 0 ? (
+                  <div className="send-panel-empty">
+                    Nothing planned yet.
+                    <br />
+                    Add invoice refs below.
+                  </div>
+                ) : (
+                  sendList.map((item) => {
+                    const isDrop = sendDropTarget?.id === item._id;
+                    return (
+                      <div
+                        key={item._id}
+                        className={`send-item${item.done ? " done-send" : ""}${isDrop && sendDropTarget?.above ? " drop-above-send" : ""}${isDrop && !sendDropTarget?.above ? " drop-below-send" : ""}`}
+                        draggable
+                        onDragStart={() => {
+                          sendDragSrcRef.current = item._id;
+                        }}
+                        onDragOver={(e) => handleSendDragOver(e, item._id)}
+                        onDragLeave={() => setSendDropTarget(null)}
+                        onDrop={() =>
+                          sendDropTarget &&
+                          handleSendDrop(item._id, sendDropTarget.above)
+                        }
+                        onDragEnd={() => {
+                          setSendDropTarget(null);
+                          sendDragSrcRef.current = null;
+                        }}
+                      >
+                        <div className="send-item-drag">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <span className="send-item-num">{item.num}</span>
+                        <div
+                          className="send-item-done-cb"
+                          onClick={() => handleToggleSendDone(item._id)}
+                        >
+                          {item.done && (
+                            <svg
+                              width="8"
+                              height="8"
+                              viewBox="0 0 10 10"
+                              style={{
+                                stroke: "white",
+                                strokeWidth: 2.5,
+                                fill: "none",
+                                strokeLinecap: "round",
+                                strokeLinejoin: "round",
+                              }}
+                            >
+                              <path d="M1.5 5l2.5 2.5 4.5-4.5" />
+                            </svg>
+                          )}
+                        </div>
+                        <button
+                          className="send-item-remove"
+                          onClick={() => handleRemoveSend(item._id)}
+                        >
+                          ✕
+                        </button>
                       </div>
-                      <button className="send-item-remove" onClick={() => handleRemoveSend(item._id)}>✕</button>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="send-panel-add">
+                <input
+                  className="send-panel-input"
+                  value={sendInput}
+                  onChange={(e) => setSendInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddSend()}
+                  placeholder="Add invoice ref…"
+                  autoComplete="off"
+                />
+                <button className="send-panel-add-btn" onClick={handleAddSend}>
+                  Add
+                </button>
+              </div>
             </div>
 
-            <div className="send-panel-add">
-              <input
-                className="send-panel-input"
-                value={sendInput}
-                onChange={(e) => setSendInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSend()}
-                placeholder="Add invoice ref…"
-                autoComplete="off"
-              />
-              <button className="send-panel-add-btn" onClick={handleAddSend}>Add</button>
+            <div className="send-panel-footer">
+              <span className="send-panel-stat">
+                <strong>{sendDoneCount}</strong> /{" "}
+                <span>{sendList.length}</span> sent today
+              </span>
+              <button className="send-clear-btn" onClick={handleClearDoneSend}>
+                Clear done
+              </button>
             </div>
           </div>
-
-          <div className="send-panel-footer">
-            <span className="send-panel-stat">
-              <strong>{sendDoneCount}</strong> / <span>{sendList.length}</span> sent today
-            </span>
-            <button className="send-clear-btn" onClick={handleClearDoneSend}>Clear done</button>
-          </div>
-        </div>}
+        )}
       </div>
 
       {fileModalInv && (
@@ -412,9 +592,13 @@ export default function AccountantView({ invoices, sendList, readOnly = false, o
           readOnly={readOnly}
           onClose={() => setFileModalInv(null)}
           onFilesChanged={(invId, files) => {
-            const updated = invoices.map((i) => i._id === invId ? { ...i, files } : i);
+            const updated = invoices.map((i) =>
+              i._id === invId ? { ...i, files } : i,
+            );
             onInvoicesChange(updated);
-            setFileModalInv((prev) => prev && prev._id === invId ? { ...prev, files } : prev);
+            setFileModalInv((prev) =>
+              prev && prev._id === invId ? { ...prev, files } : prev,
+            );
           }}
         />
       )}
