@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TEMPLATES, getTemplate, totalItems } from "../data/templates";
+import { getTemplate, totalItems } from "../data/templates";
 import type { ChecklistInstance, AccountantInvoice } from "../types";
 
 interface Props {
@@ -10,10 +10,17 @@ interface Props {
   onSelect: (id: string) => void;
   onSelectAccountant: () => void;
   onSelectLogicall: () => void;
-  onAdd: (templateId: string) => void;
+  onAdd: (exportId: string, localId?: string) => void;
   onDelete: (instanceId: string) => void;
   onLogout: () => void;
 }
+
+const DOC_PAIRS = [
+  { label: "Invoice", exportId: "export-invoice", localId: "local-invoice" },
+  { label: "COO", exportId: "coo", localId: null },
+  { label: "Shipping details folder", exportId: "shipping-export", localId: "shipping-local" },
+  { label: "Shipment audit trail", exportId: "audit-trail", localId: "audit-trail-local" },
+] as const;
 
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -40,14 +47,8 @@ export default function Sidebar({
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const groups = [...new Set(TEMPLATES.map((t) => t.group))];
-
-  function toggleCollapse(templateId: string) {
-    setCollapsed((prev) => ({ ...prev, [templateId]: !prev[templateId] }));
-  }
-
-  function instancesForTemplate(templateId: string) {
-    return instances.filter((i) => i.templateId === templateId);
+  function toggleCollapse(key: string) {
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   const q = search.trim().toLowerCase();
@@ -151,88 +152,95 @@ export default function Sidebar({
         </div>
       ) : (
         <>
-          {role === "operations" &&
-            groups.map((group) => (
-              <div key={group} className="nav-group">
-                <div className="nav-group-header">
-                  <span className="nav-group-label">{group}</span>
-                </div>
-                {TEMPLATES.filter((t) => t.group === group).map((template) => {
-                  const tInstances = instancesForTemplate(template.id);
-                  const isOpen =
-                    tInstances.length > 0 && !collapsed[template.id];
-                  return (
-                    <div
-                      key={template.id}
-                      className={`template-block${isOpen ? " open" : ""}`}
-                    >
-                      <div className="template-label-row">
-                        <div
-                          className="template-label"
-                          onClick={() =>
-                            tInstances.length > 0 && toggleCollapse(template.id)
-                          }
-                        >
-                          <span
-                            className="template-chevron"
-                            style={{ opacity: tInstances.length > 0 ? 1 : 0 }}
-                          >
-                            ▶
-                          </span>
-                          {template.name}
-                        </div>
-                        <button
-                          className="nav-group-add"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAdd(template.id);
-                          }}
-                          title="New checklist"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <div className="instance-list">
-                        {tInstances.map((inst) => {
-                          const total = totalItems(template.id);
-                          const done = inst.doneItems.length;
-                          const isComplete = done === total;
-                          return (
-                            <div
-                              key={inst._id}
-                              className={`nav-item${currentId === inst._id ? " active" : ""}`}
-                              onClick={() => onSelect(inst._id)}
-                            >
-                              <div
-                                className="nav-label"
-                                title={inst.invoiceNum}
-                              >
-                                <span>{inst.invoiceNum}</span>
-                                {isComplete && (
-                                  <span className="complete-tag">Complete</span>
-                                )}
-                              </div>
-                              <span className="nav-badge">
-                                {done}/{total}
-                              </span>
-                              <span
-                                className="nav-delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDelete(inst._id);
-                                }}
-                              >
-                                ✕
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+          {role === "operations" && (
+            <div className="nav-group">
+              <div className="nav-group-header">
+                <span className="nav-group-label">Documents</span>
               </div>
-            ))}
+
+              {DOC_PAIRS.map((pair) => {
+                const templateIds: string[] = pair.localId
+                  ? [pair.exportId, pair.localId]
+                  : [pair.exportId];
+                const pairInstances = instances.filter((i) =>
+                  templateIds.includes(i.templateId),
+                );
+                const isOpen = pairInstances.length > 0 && !collapsed[pair.label];
+
+                return (
+                  <div
+                    key={pair.label}
+                    className={`template-block${isOpen ? " open" : ""}`}
+                  >
+                    <div className="template-label-row">
+                      <div
+                        className="template-label"
+                        onClick={() =>
+                          pairInstances.length > 0 && toggleCollapse(pair.label)
+                        }
+                      >
+                        <span
+                          className="template-chevron"
+                          style={{ opacity: pairInstances.length > 0 ? 1 : 0 }}
+                        >
+                          ▶
+                        </span>
+                        {pair.label}
+                      </div>
+
+                      <button
+                        className="nav-group-add"
+                        onClick={() => onAdd(pair.exportId, pair.localId ?? undefined)}
+                        title="New checklist"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <div className="instance-list">
+                      {pairInstances.map((inst) => {
+                        const total = totalItems(inst.templateId);
+                        const done = inst.doneItems.length;
+                        const isComplete = done === total;
+                        const isExport = inst.templateId === pair.exportId;
+                        return (
+                          <div
+                            key={inst._id}
+                            className={`nav-item${currentId === inst._id ? " active" : ""}`}
+                            onClick={() => onSelect(inst._id)}
+                          >
+                            <div className="nav-label" title={inst.invoiceNum}>
+                              <span
+                                className={`nav-type-tag${isExport ? " export" : " local"}`}
+                              >
+                                {isExport ? "EXP" : "LOC"}
+                              </span>
+                              <span>{inst.invoiceNum}</span>
+                              {isComplete && (
+                                <span className="complete-tag">Complete</span>
+                              )}
+                            </div>
+                            <span className="nav-badge">
+                              {done}/{total}
+                            </span>
+                            <span
+                              className="nav-delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(inst._id);
+                              }}
+                            >
+                              ✕
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="nav-group">
             <div className="nav-group-header">

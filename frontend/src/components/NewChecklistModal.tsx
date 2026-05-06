@@ -2,16 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { getTemplate } from '../data/templates';
 
 interface Props {
-  templateId: string;
-  onConfirm: (invoiceNum: string) => void;
+  exportId: string;
+  localId?: string;
+  onConfirm: (invoiceNum: string, templateId: string) => void;
   onClose: () => void;
 }
 
-export default function NewChecklistModal({ templateId, onConfirm, onClose }: Props) {
+export default function NewChecklistModal({ exportId, localId, onConfirm, onClose }: Props) {
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
+  const [selectedType, setSelectedType] = useState<'export' | 'local'>('export');
   const inputRef = useRef<HTMLInputElement>(null);
-  const template = getTemplate(templateId);
+
+  const chosenId = selectedType === 'export' || !localId ? exportId : localId;
+  const template = getTemplate(chosenId);
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 80);
@@ -20,7 +24,7 @@ export default function NewChecklistModal({ templateId, onConfirm, onClose }: Pr
   function handleConfirm() {
     const trimmed = value.trim();
     if (!trimmed) { setError(true); inputRef.current?.focus(); return; }
-    onConfirm(trimmed);
+    onConfirm(trimmed, chosenId);
   }
 
   return (
@@ -28,6 +32,24 @@ export default function NewChecklistModal({ templateId, onConfirm, onClose }: Pr
       <div className="modal">
         <div className="modal-title">New <em>checklist</em></div>
         <div className="modal-sub">{template?.name || 'Creating a new instance'}</div>
+
+        {localId && (
+          <div className="modal-type-toggle">
+            <button
+              className={`modal-type-btn${selectedType === 'export' ? ' active' : ''}`}
+              onClick={() => setSelectedType('export')}
+            >
+              Export
+            </button>
+            <button
+              className={`modal-type-btn${selectedType === 'local' ? ' active' : ''}`}
+              onClick={() => setSelectedType('local')}
+            >
+              Local
+            </button>
+          </div>
+        )}
+
         <div className="modal-field">
           <label>Invoice / Reference number</label>
           <input

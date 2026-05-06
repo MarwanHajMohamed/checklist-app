@@ -34,9 +34,10 @@ export default function AppPage() {
   const [currentId, setCurrentId] = useState<string | null>(() =>
     user?.role === "accountant" ? "accountant" : null,
   );
-  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(
-    null,
-  );
+  const [pendingPair, setPendingPair] = useState<{
+    exportId: string;
+    localId?: string;
+  } | null>(null);
 
   const [invoices, setInvoices] = useState<AccountantInvoice[]>([]);
   const [sendList, setSendList] = useState<SendListItem[]>([]);
@@ -86,7 +87,7 @@ export default function AppPage() {
         newInst,
       ]);
       setCurrentId(newInst._id);
-      setPendingTemplateId(null);
+      setPendingPair(null);
     },
   });
 
@@ -147,7 +148,7 @@ export default function AppPage() {
         onSelect={setCurrentId}
         onSelectAccountant={() => setCurrentId("accountant")}
         onSelectLogicall={() => setCurrentId("logicall")}
-        onAdd={(templateId) => setPendingTemplateId(templateId)}
+        onAdd={(exportId, localId) => setPendingPair({ exportId, localId })}
         onDelete={(id) => deleteMutation.mutate(id)}
         onLogout={logout}
       />
@@ -186,13 +187,14 @@ export default function AppPage() {
         )}
       </main>
 
-      {isOperations && pendingTemplateId && (
+      {isOperations && pendingPair && (
         <NewChecklistModal
-          templateId={pendingTemplateId}
-          onConfirm={(invoiceNum) =>
-            createMutation.mutate({ templateId: pendingTemplateId, invoiceNum })
+          exportId={pendingPair.exportId}
+          localId={pendingPair.localId}
+          onConfirm={(invoiceNum, templateId) =>
+            createMutation.mutate({ templateId, invoiceNum })
           }
-          onClose={() => setPendingTemplateId(null)}
+          onClose={() => setPendingPair(null)}
         />
       )}
     </>

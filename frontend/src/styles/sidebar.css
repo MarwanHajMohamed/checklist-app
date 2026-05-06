@@ -385,6 +385,68 @@
   opacity: 1 !important;
 }
 
+.add-picker-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.add-type-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+  min-width: 90px;
+}
+
+.add-type-option {
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  color: var(--ink-muted);
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.add-type-option:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.add-type-option + .add-type-option {
+  border-top: 1px solid var(--border);
+}
+
+.nav-type-tag {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.nav-type-tag.export {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.nav-type-tag.local {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 .complete-tag {
   font-size: 9px;
   letter-spacing: 0.08em;

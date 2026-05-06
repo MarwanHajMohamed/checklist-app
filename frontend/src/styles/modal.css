@@ -52,6 +52,36 @@
   margin-bottom: 1.5rem;
 }
 
+.modal-type-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.modal-type-btn {
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  flex: 1;
+  padding: 9px 0;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modal-type-btn + .modal-type-btn {
+  border-left: 1px solid var(--border);
+}
+
+.modal-type-btn.active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
 .modal-field label {
   display: block;
   font-size: 10px;
