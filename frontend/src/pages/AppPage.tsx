@@ -1,15 +1,25 @@
-import { useEffect, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Sidebar from '../components/Sidebar';
-import ChecklistView from '../components/ChecklistView';
-import AccountantView from '../components/AccountantView';
-import LogicallView from '../components/LogicallView';
-import NewChecklistModal from '../components/NewChecklistModal';
-import { useAuth } from '../contexts/AuthContext';
-import { fetchChecklists, createChecklist, toggleItem, resetChecklist, deleteChecklist } from '../api/checklists';
-import { fetchInvoices } from '../api/accountant';
-import { fetchSendList } from '../api/sendList';
-import type { AccountantInvoice, ChecklistInstance, SendListItem } from '../types';
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Sidebar from "../components/Sidebar";
+import ChecklistView from "../components/ChecklistView";
+import AccountantView from "../components/AccountantView";
+import LogicallView from "../components/LogicallView";
+import NewChecklistModal from "../components/NewChecklistModal";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  fetchChecklists,
+  createChecklist,
+  toggleItem,
+  resetChecklist,
+  deleteChecklist,
+} from "../api/checklists";
+import { fetchInvoices } from "../api/accountant";
+import { fetchSendList } from "../api/sendList";
+import type {
+  AccountantInvoice,
+  ChecklistInstance,
+  SendListItem,
+} from "../types";
 
 const EMPTY_INVOICES: AccountantInvoice[] = [];
 const EMPTY_SEND_LIST: SendListItem[] = [];
@@ -19,35 +29,41 @@ export default function AppPage() {
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
-  const isOperations = user?.role === 'operations';
+  const isOperations = user?.role === "operations";
 
   const [currentId, setCurrentId] = useState<string | null>(() =>
-    user?.role === 'accountant' ? 'accountant' : null
+    user?.role === "accountant" ? "accountant" : null,
   );
-  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(
+    null,
+  );
 
   const [invoices, setInvoices] = useState<AccountantInvoice[]>([]);
   const [sendList, setSendList] = useState<SendListItem[]>([]);
 
   const { data: instances = EMPTY_INSTANCES } = useQuery({
-    queryKey: ['checklists'],
+    queryKey: ["checklists"],
     queryFn: fetchChecklists,
     enabled: isOperations,
   });
 
   const { data: fetchedInvoices = EMPTY_INVOICES } = useQuery({
-    queryKey: ['accountant'],
+    queryKey: ["accountant"],
     queryFn: fetchInvoices,
   });
 
   const { data: fetchedSendList = EMPTY_SEND_LIST } = useQuery({
-    queryKey: ['sendList'],
+    queryKey: ["sendList"],
     queryFn: () => fetchSendList(),
     enabled: isOperations,
   });
 
-  useEffect(() => { setInvoices(fetchedInvoices); }, [fetchedInvoices]);
-  useEffect(() => { setSendList(fetchedSendList); }, [fetchedSendList]);
+  useEffect(() => {
+    setInvoices(fetchedInvoices);
+  }, [fetchedInvoices]);
+  useEffect(() => {
+    setSendList(fetchedSendList);
+  }, [fetchedSendList]);
 
   // Select first instance on load (operations only)
   useEffect(() => {
@@ -57,29 +73,52 @@ export default function AppPage() {
   }, [instances, currentId, isOperations]);
 
   const createMutation = useMutation({
-    mutationFn: ({ templateId, invoiceNum }: { templateId: string; invoiceNum: string }) =>
-      createChecklist(templateId, invoiceNum),
+    mutationFn: ({
+      templateId,
+      invoiceNum,
+    }: {
+      templateId: string;
+      invoiceNum: string;
+    }) => createChecklist(templateId, invoiceNum),
     onSuccess: (newInst) => {
-      qc.setQueryData<ChecklistInstance[]>(['checklists'], (prev = []) => [...prev, newInst]);
+      qc.setQueryData<ChecklistInstance[]>(["checklists"], (prev = []) => [
+        ...prev,
+        newInst,
+      ]);
       setCurrentId(newInst._id);
       setPendingTemplateId(null);
     },
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, index }: { id: string; index: number }) => toggleItem(id, index),
-    onSuccess: (updated) => {
-      qc.setQueryData<ChecklistInstance[]>(['checklists'], (prev = []) =>
-        prev.map((i) => (i._id === updated._id ? updated : i))
+    mutationFn: ({ id, index }: { id: string; index: number }) =>
+      toggleItem(id, index),
+    onMutate: async ({ id, index }) => {
+      await qc.cancelQueries({ queryKey: ["checklists"] });
+      const previous = qc.getQueryData<ChecklistInstance[]>(["checklists"]);
+      qc.setQueryData<ChecklistInstance[]>(["checklists"], (prev = []) =>
+        prev.map((inst) => {
+          if (inst._id !== id) return inst;
+          const doneItems = inst.doneItems.includes(index)
+            ? inst.doneItems.filter((i) => i !== index)
+            : [...inst.doneItems, index];
+          return { ...inst, doneItems };
+        }),
       );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        qc.setQueryData(["checklists"], context.previous);
+      }
     },
   });
 
   const resetMutation = useMutation({
     mutationFn: (id: string) => resetChecklist(id),
     onSuccess: (updated) => {
-      qc.setQueryData<ChecklistInstance[]>(['checklists'], (prev = []) =>
-        prev.map((i) => (i._id === updated._id ? updated : i))
+      qc.setQueryData<ChecklistInstance[]>(["checklists"], (prev = []) =>
+        prev.map((i) => (i._id === updated._id ? updated : i)),
       );
     },
   });
@@ -87,14 +126,16 @@ export default function AppPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteChecklist(id),
     onSuccess: (_, id) => {
-      qc.setQueryData<ChecklistInstance[]>(['checklists'], (prev = []) => prev.filter((i) => i._id !== id));
+      qc.setQueryData<ChecklistInstance[]>(["checklists"], (prev = []) =>
+        prev.filter((i) => i._id !== id),
+      );
       if (currentId === id) setCurrentId(null);
     },
   });
 
   const currentInstance = instances.find((i) => i._id === currentId);
-  const isAccountantView = currentId === 'accountant';
-  const isLogicallView = currentId === 'logicall';
+  const isAccountantView = currentId === "accountant";
+  const isLogicallView = currentId === "logicall";
 
   return (
     <>
@@ -102,10 +143,10 @@ export default function AppPage() {
         instances={instances}
         accountantInvoices={invoices}
         currentId={currentId}
-        role={user?.role ?? 'operations'}
+        role={user?.role ?? "operations"}
         onSelect={setCurrentId}
-        onSelectAccountant={() => setCurrentId('accountant')}
-        onSelectLogicall={() => setCurrentId('logicall')}
+        onSelectAccountant={() => setCurrentId("accountant")}
+        onSelectLogicall={() => setCurrentId("logicall")}
         onAdd={(templateId) => setPendingTemplateId(templateId)}
         onDelete={(id) => deleteMutation.mutate(id)}
         onLogout={logout}
@@ -114,7 +155,9 @@ export default function AppPage() {
       <main className="main">
         {!currentId && (
           <div className="empty-state visible">
-            <h2>No checklist <em>selected</em></h2>
+            <h2>
+              No checklist <em>selected</em>
+            </h2>
             <p>Create a new checklist from the sidebar to get started.</p>
           </div>
         )}
@@ -124,7 +167,9 @@ export default function AppPage() {
         {currentInstance && (
           <ChecklistView
             instance={currentInstance}
-            onToggle={(index) => toggleMutation.mutate({ id: currentInstance._id, index })}
+            onToggle={(index) =>
+              toggleMutation.mutate({ id: currentInstance._id, index })
+            }
             onReset={() => resetMutation.mutate(currentInstance._id)}
             onDelete={() => deleteMutation.mutate(currentInstance._id)}
           />
@@ -144,7 +189,9 @@ export default function AppPage() {
       {isOperations && pendingTemplateId && (
         <NewChecklistModal
           templateId={pendingTemplateId}
-          onConfirm={(invoiceNum) => createMutation.mutate({ templateId: pendingTemplateId, invoiceNum })}
+          onConfirm={(invoiceNum) =>
+            createMutation.mutate({ templateId: pendingTemplateId, invoiceNum })
+          }
           onClose={() => setPendingTemplateId(null)}
         />
       )}

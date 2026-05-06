@@ -1,11 +1,10 @@
 import { Schema, model } from 'mongoose';
 
 const attachedFileSchema = new Schema({
-  cloudinaryId: { type: String, required: true },
+  filename: { type: String, required: true },
   originalName: { type: String, required: true },
   mimetype: { type: String, required: true },
   size: { type: Number, required: true },
-  url: { type: String, required: true },
 }, { _id: true });
 
 const schema = new Schema({

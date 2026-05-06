@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { AccountantInvoice, SendListItem } from "../types";
 import {
   createInvoice,
@@ -56,6 +57,31 @@ export default function AccountantView({
   // Send list
   const [sendInput, setSendInput] = useState("");
 
+  // Row refs for FLIP animation
+  const rowRefs = useRef<Record<string, HTMLDivElement>>({});
+  const snapshots = useRef<Record<string, number>>({});
+
+  function snapshotPositions() {
+    const snap: Record<string, number> = {};
+    for (const [id, el] of Object.entries(rowRefs.current)) {
+      if (el) snap[id] = el.getBoundingClientRect().top;
+    }
+    snapshots.current = snap;
+  }
+
+  function playFlip() {
+    for (const [id, el] of Object.entries(rowRefs.current)) {
+      if (!el || snapshots.current[id] == null) continue;
+      const delta = snapshots.current[id] - el.getBoundingClientRect().top;
+      if (Math.abs(delta) < 1) continue;
+      el.style.transition = "none";
+      el.style.transform = `translateY(${delta}px)`;
+      el.offsetHeight; // force reflow
+      el.style.transition = "transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)";
+      el.style.transform = "translateY(0)";
+    }
+  }
+
   // Drag state (accountant table)
   const dragSrcRef = useRef<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{
@@ -90,17 +116,35 @@ export default function AccountantView({
   async function handleAdd() {
     const num = newInvNum.trim();
     if (!num) return;
-    const inv = await createInvoice(num);
-    onInvoicesChange([...invoices, inv]);
+    const tempId = `temp-${Date.now()}`;
+    const tempInv: AccountantInvoice = {
+      _id: tempId,
+      num,
+      sent: false,
+      order: invoices.length,
+      files: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const optimisticList = [...invoices, tempInv];
     setNewInvNum("");
+    onInvoicesChange(optimisticList);
+    createInvoice(num)
+      .then((inv) => onInvoicesChange(optimisticList.map((i) => i._id === tempId ? inv : i)))
+      .catch(() => onInvoicesChange(invoices));
   }
 
-  async function handleToggleSent(id: string) {
+  function handleToggleSent(id: string) {
     const inv = invoices.find((i) => i._id === id);
     if (!inv) return;
-    const updated = await updateInvoice(id, { sent: !inv.sent });
-    onInvoicesChange(
-      invoices.map((i) => (i._id === id ? { ...i, sent: updated.sent } : i)),
+    const newSent = !inv.sent;
+    snapshotPositions();
+    flushSync(() =>
+      onInvoicesChange(invoices.map((i) => (i._id === id ? { ...i, sent: newSent } : i)))
+    );
+    playFlip();
+    updateInvoice(id, { sent: newSent }).catch(() =>
+      onInvoicesChange(invoices)
     );
   }
 
@@ -169,9 +213,20 @@ export default function AccountantView({
   async function handleAddSend() {
     const num = sendInput.trim();
     if (!num) return;
-    const item = await addSendItem(num);
-    onSendListChange([...sendList, item]);
+    const tempId = `temp-${Date.now()}`;
+    const tempItem: SendListItem = {
+      _id: tempId,
+      num,
+      done: false,
+      order: sendList.length,
+      date: new Date().toISOString().slice(0, 10),
+    };
+    const optimisticList = [...sendList, tempItem];
     setSendInput("");
+    onSendListChange(optimisticList);
+    addSendItem(num)
+      .then((item) => onSendListChange(optimisticList.map((i) => i._id === tempId ? item : i)))
+      .catch(() => onSendListChange(sendList));
   }
 
   async function handleToggleSendDone(id: string) {
@@ -322,6 +377,10 @@ export default function AccountantView({
                   return (
                     <div
                       key={inv._id}
+                      ref={(el) => {
+                        if (el) rowRefs.current[inv._id] = el;
+                        else delete rowRefs.current[inv._id];
+                      }}
                       className={`acct-row${inv.sent ? " sent" : ""}${isDrop && dropTarget?.above ? " drop-above" : ""}${isDrop && !dropTarget?.above ? " drop-below" : ""}`}
                       draggable={!readOnly}
                       onDragStart={

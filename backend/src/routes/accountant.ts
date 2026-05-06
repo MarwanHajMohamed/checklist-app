@@ -1,26 +1,25 @@
 import { Router, Response } from 'express';
-import https from 'https';
-import http from 'http';
-import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
+import path from 'path';
 import multer from 'multer';
 import AccountantInvoice from '../models/AccountantInvoice';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 
-cloudinary.config();
+const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || 'uploads');
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      cb(null, UPLOAD_DIR);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
   limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE || '20971520') },
 });
-
-function uploadStream(buffer: Buffer, options: object): Promise<{ public_id: string; secure_url: string }> {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_stream(options, (err, result) => {
-      if (err || !result) return reject(err ?? new Error('Upload failed'));
-      resolve(result as { public_id: string; secure_url: string });
-    }).end(buffer);
-  });
-}
 
 const router = Router();
 router.use(requireAuth);
@@ -57,9 +56,9 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   const item = await AccountantInvoice.findByIdAndDelete(req.params.id);
   if (item) {
-    await Promise.all(item.files.map((f: any) =>
-      cloudinary.uploader.destroy(f.cloudinaryId, { resource_type: 'raw' }).catch(() => {})
-    ));
+    item.files.forEach((f: any) => {
+      fs.unlink(path.join(UPLOAD_DIR, f.filename), () => {});
+    });
   }
   res.json({ ok: true });
 });
@@ -68,21 +67,13 @@ router.post('/:id/files', upload.array('files'), async (req: AuthRequest, res: R
   const item = await AccountantInvoice.findById(req.params.id);
   if (!item) { res.status(404).json({ error: 'Not found' }); return; }
   const files = req.files as Express.Multer.File[];
-  const uploaded = await Promise.all(files.map(async (f) => {
-    const result = await uploadStream(f.buffer, {
-      folder: 'checklist-app',
-      resource_type: 'raw',
-      public_id: `${req.params.id}_${Date.now()}_${f.originalname}`,
-    });
-    return {
-      cloudinaryId: result.public_id,
-      originalName: f.originalname,
-      mimetype: f.mimetype,
-      size: f.size,
-      url: result.secure_url,
-    };
+  const newFiles = files.map((f) => ({
+    filename: f.filename,
+    originalName: f.originalname,
+    mimetype: f.mimetype,
+    size: f.size,
   }));
-  item.files.push(...uploaded as any);
+  item.files.push(...newFiles as any);
   await item.save();
   res.json({ files: item.files });
 });
@@ -94,8 +85,7 @@ router.get('/:id/files/:fileId', async (req: AuthRequest, res: Response) => {
   if (!file) { res.status(404).json({ error: 'File not found' }); return; }
   res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
   res.setHeader('Content-Type', file.mimetype);
-  const lib = file.url.startsWith('https') ? https : http;
-  lib.get(file.url, (stream) => stream.pipe(res));
+  res.sendFile(path.join(UPLOAD_DIR, file.filename));
 });
 
 router.delete('/:id/files/:fileId', async (req: AuthRequest, res: Response) => {
@@ -103,7 +93,7 @@ router.delete('/:id/files/:fileId', async (req: AuthRequest, res: Response) => {
   if (!item) { res.status(404).json({ error: 'Not found' }); return; }
   const file = item.files.find((f: any) => f._id.toString() === req.params.fileId) as any;
   if (file) {
-    await cloudinary.uploader.destroy(file.cloudinaryId, { resource_type: 'raw' }).catch(() => {});
+    fs.unlink(path.join(UPLOAD_DIR, file.filename), () => {});
     item.files = item.files.filter((f: any) => f._id.toString() !== req.params.fileId) as any;
     await item.save();
   }
